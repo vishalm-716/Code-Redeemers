@@ -1,0 +1,277 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>DocuQuery AI - Document Processing System</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://unpkg.com/lucide@latest"></script>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap');
+        body {
+            font-family: 'Inter', sans-serif;
+        }
+        .animate-fade-in {
+            animation: fadeIn 0.5s ease-in-out;
+        }
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateY(10px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+        .hidden {
+            display: none;
+        }
+    </style>
+</head>
+<body class="bg-gray-100">
+
+    <header class="bg-gray-900 text-white p-4 shadow-md">
+        <div class="container mx-auto flex items-center justify-between">
+            <h1 class="text-2xl font-bold tracking-tight">DocuQuery AI</h1>
+            <p class="text-sm text-gray-400">Your AI-Powered Document Analyst</p>
+        </div>
+    </header>
+
+    <main class="container mx-auto p-4 md:p-8">
+        <div class="max-w-2xl mx-auto bg-white p-8 rounded-xl shadow-md">
+            <!-- Step 1: File Upload -->
+            <h2 class="text-2xl font-semibold text-gray-800 mb-1">Step 1: Upload Document</h2>
+            <p class="text-gray-500 mb-6">Upload the policy, contract, or document you want to query.</p>
+            
+            <div id="file-uploader" class="border-2 border-dashed rounded-lg p-8 text-center transition-all duration-300 border-gray-300 hover:border-blue-400 hover:bg-gray-50 cursor-pointer">
+                <input type="file" id="file-input" class="hidden" accept=".pdf,.doc,.docx,.txt,application/pdf,application/msword,application/vnd.openxmlformats-officedocument.wordprocessingml.document">
+                <div id="upload-prompt">
+                    <div class="flex flex-col items-center justify-center text-gray-500">
+                        <i data-lucide="file-up" class="h-12 w-12 mb-2"></i>
+                        <p class="font-semibold">Drag & Drop your document here</p>
+                        <p class="text-sm">or click to select a file</p>
+                        <p class="text-xs mt-2 text-gray-400">Supported formats: PDF, DOCX, TXT</p>
+                    </div>
+                </div>
+                <div id="upload-loading" class="hidden">
+                     <div class="flex flex-col items-center justify-center text-blue-600">
+                        <i data-lucide="loader-2" class="animate-spin h-12 w-12 mb-2"></i>
+                        <p class="font-semibold">Uploading...</p>
+                    </div>
+                </div>
+                <div id="upload-success" class="hidden">
+                    <div class="flex flex-col items-center justify-center text-green-600">
+                        <i data-lucide="file-text" class="h-12 w-12 mb-2"></i>
+                        <p id="file-name" class="font-semibold"></p>
+                        <p class="text-sm text-gray-500">File ready. You can now enter your query.</p>
+                    </div>
+                </div>
+            </div>
+            <div id="error-message" class="hidden mt-4 text-red-600 bg-red-100 p-3 rounded-lg"></div>
+
+            <!-- Step 2: Query Input -->
+            <div id="query-section" class="mt-8 pt-6 border-t border-gray-200 opacity-40 cursor-not-allowed">
+                <h2 class="text-2xl font-semibold text-gray-800 mb-1">Step 2: Ask a Question</h2>
+                <p class="text-gray-500 mb-4">Use natural language to ask about the document.</p>
+                <form id="query-form" class="relative">
+                    <input id="query-input" type="text" placeholder="e.g., '46-year-old male, knee surgery in Pune, 3-month-old insurance policy'" class="w-full p-4 pr-16 border border-gray-300 rounded-lg shadow-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all" disabled>
+                    <button id="query-button" type="submit" class="absolute inset-y-0 right-0 flex items-center justify-center px-5 bg-blue-600 text-white rounded-r-lg hover:bg-blue-700 disabled:bg-gray-400 transition-all" disabled>
+                        <i data-lucide="search" class="h-5 w-5"></i>
+                    </button>
+                </form>
+            </div>
+
+            <!-- Processing and Result Display -->
+            <div id="processing-indicator" class="hidden mt-8 text-center">
+                <i data-lucide="loader-2" class="h-8 w-8 animate-spin mx-auto text-blue-600"></i>
+                <p class="mt-2 text-gray-600">Analyzing document with AI... Please wait.</p>
+            </div>
+            <div id="result-display" class="mt-8"></div>
+        </div>
+    </main>
+
+    <script>
+        document.addEventListener('DOMContentLoaded', () => {
+            // --- DOM Elements ---
+            const fileUploader = document.getElementById('file-uploader');
+            const fileInput = document.getElementById('file-input');
+            const uploadPrompt = document.getElementById('upload-prompt');
+            const uploadLoading = document.getElementById('upload-loading');
+            const uploadSuccess = document.getElementById('upload-success');
+            const fileNameDisplay = document.getElementById('file-name');
+            const errorMessage = document.getElementById('error-message');
+            
+            const querySection = document.getElementById('query-section');
+            const queryForm = document.getElementById('query-form');
+            const queryInput = document.getElementById('query-input');
+            const queryButton = document.getElementById('query-button');
+            
+            const processingIndicator = document.getElementById('processing-indicator');
+            const resultDisplay = document.getElementById('result-display');
+
+            let uploadedFileId = null;
+
+            // --- API Functions ---
+            const BACKEND_URL = 'http://localhost:3000/process-query';
+
+            // This function still mocks the file upload, as building a file-receiving
+            // backend is a more complex topic. The focus here is the query webhook.
+            const mockUploadFile = async (file) => {
+                console.log(`Uploading file: ${file.name}`);
+                await new Promise(resolve => setTimeout(resolve, 1000));
+                const fileId = `doc_${Date.now()}`;
+                return { success: true, fileId, fileName: file.name };
+            };
+
+            // ** UPDATED FUNCTION **
+            // This now calls our backend webhook instead of running logic in the browser.
+            const processQuery = async (query) => {
+                console.log(`Sending query to backend: "${query}"`);
+                
+                const response = await fetch(BACKEND_URL, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({ query: query }), // Send the query in the request body
+                });
+
+                if (!response.ok) {
+                    throw new Error(`Network response was not ok. Status: ${response.status}`);
+                }
+
+                return response.json(); // Return the JSON data from the backend
+            };
+            
+            // --- UI Update Functions ---
+            function showState(state) {
+                uploadPrompt.classList.add('hidden');
+                uploadLoading.classList.add('hidden');
+                uploadSuccess.classList.add('hidden');
+                if (state === 'loading') uploadLoading.classList.remove('hidden');
+                else if (state === 'success') uploadSuccess.classList.remove('hidden');
+                else uploadPrompt.classList.remove('hidden');
+            }
+
+            function showError(message) {
+                errorMessage.textContent = message;
+                errorMessage.classList.remove('hidden');
+            }
+
+            function clearError() {
+                errorMessage.classList.add('hidden');
+            }
+
+            function enableQuerySection() {
+                querySection.classList.remove('opacity-40', 'cursor-not-allowed');
+                queryInput.disabled = false;
+                queryButton.disabled = false;
+            }
+
+            function displayResult(result) {
+                const { decision, amount, justification } = result;
+                const isApproved = decision === 'Approved';
+                
+                const decisionColor = isApproved ? 'green' : 'red';
+                const decisionIcon = isApproved ? 'check-circle' : 'x-circle';
+
+                let amountHtml = '';
+                if (amount > 0) {
+                    amountHtml = `<p class="font-semibold">Payout Amount: ₹${amount.toLocaleString('en-IN')}</p>`;
+                }
+
+                const justificationHtml = justification.map(item => `
+                    <li class="p-3 bg-gray-50 rounded-md border-l-4 border-gray-300">
+                       <span class="font-medium text-gray-800">[${item.decision}]</span> ${item.clause}
+                    </li>
+                `).join('');
+
+                resultDisplay.innerHTML = `
+                    <div class="p-6 bg-white border border-gray-200 rounded-lg shadow-lg animate-fade-in">
+                        <h3 class="text-xl font-bold text-gray-800 mb-4">Analysis Result</h3>
+                        <div class="flex items-center p-4 rounded-lg mb-6 bg-${decisionColor}-100 text-${decisionColor}-800">
+                            <i data-lucide="${decisionIcon}" class="h-8 w-8 mr-4"></i>
+                            <div>
+                                <p class="font-bold text-lg">Decision: ${decision}</p>
+                                ${amountHtml}
+                            </div>
+                        </div>
+                        <div class="space-y-4">
+                            <h4 class="font-semibold text-gray-700">Justification:</h4>
+                            <ul class="list-disc list-inside space-y-3 text-gray-600">${justificationHtml}</ul>
+                        </div>
+                    </div>
+                `;
+                lucide.createIcons(); // Re-render icons
+            }
+
+            // --- Event Handlers ---
+            async function handleFileSelect(file) {
+                if (!file) return;
+                
+                showState('loading');
+                clearError();
+                resultDisplay.innerHTML = '';
+                
+                try {
+                    const response = await mockUploadFile(file);
+                    if (response.success) {
+                        uploadedFileId = response.fileId;
+                        fileNameDisplay.textContent = response.fileName;
+                        showState('success');
+                        enableQuerySection();
+                    } else {
+                        throw new Error('File upload failed.');
+                    }
+                } catch (err) {
+                    showError(err.message);
+                    showState('prompt');
+                }
+            }
+
+            fileUploader.addEventListener('click', () => fileInput.click());
+            fileInput.addEventListener('change', (e) => handleFileSelect(e.target.files[0]));
+            
+            fileUploader.addEventListener('dragover', (e) => {
+                e.preventDefault();
+                fileUploader.classList.add('border-blue-500', 'bg-blue-50');
+            });
+            fileUploader.addEventListener('dragleave', (e) => {
+                e.preventDefault();
+                fileUploader.classList.remove('border-blue-500', 'bg-blue-50');
+            });
+            fileUploader.addEventListener('drop', (e) => {
+                e.preventDefault();
+                fileUploader.classList.remove('border-blue-500', 'bg-blue-50');
+                handleFileSelect(e.dataTransfer.files[0]);
+            });
+
+            queryForm.addEventListener('submit', async (e) => {
+                e.preventDefault();
+                const query = queryInput.value.trim();
+                if (!query || !uploadedFileId) return;
+
+                processingIndicator.classList.remove('hidden');
+                queryButton.innerHTML = `<i data-lucide="loader-2" class="animate-spin h-5 w-5"></i>`;
+                lucide.createIcons();
+                queryInput.disabled = true;
+                queryButton.disabled = true;
+                resultDisplay.innerHTML = '';
+                clearError();
+
+                try {
+                    const result = await processQuery(query); // Use the new function
+                    displayResult(result);
+                } catch (err) {
+                    console.error("Error calling backend:", err);
+                    showError('Failed to connect to the backend service. Make sure the server is running.');
+                } finally {
+                    processingIndicator.classList.add('hidden');
+                    queryButton.innerHTML = `<i data-lucide="search" class="h-5 w-5"></i>`;
+                    lucide.createIcons();
+                    queryInput.disabled = false;
+                    queryButton.disabled = false;
+                }
+            });
+
+            // Initial render of icons
+            lucide.createIcons();
+        });
+    </script>
+</body>
+</html>
